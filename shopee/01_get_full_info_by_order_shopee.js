@@ -14,6 +14,45 @@ let orderRes, escrowDetailBatchRes, buyerInvoiceRes, invItemRes, returnOrderRes;
 // mockdata để import vào trong local
 let mockData = [];
 
+// ====== CẤU HÌNH CHO PHẦN QUERY DB (system_config + database_id user) ======
+let isQuerySqlBuilder = false; // bật true nếu muốn query thêm system_config/database_id và build sqlBuilder
+let databaseId = null; // điền database_id tương ứng với shop cần lấy dữ liệu
+let SYSTEM_CONFIG_CONNECTION_STRING = "điền vào đây"; // connection string trỏ tới DB system_config
+let DATABASE_ID_CONNECTION_STRING = "điền vào đây"; // connection string trỏ tới DB của database_id (user db)
+let QUERY_AUTH_TOKEN = "Bearer đây"; // copy từ curl gốc của api Query
+let QUERY_API_URL = "https://smecloudmnt.misaonline.vpnlocal/api/dbmntv2/Query";
+
+let connectionId = null;
+let connectionInfoRes,
+  settingSyncOrderRes,
+  settingMappingItemRes,
+  settingMappingStockRes;
+let sqlBuilder = {};
+
+// helper build curl cho api Query (dùng chung cho system_config và database_id user)
+function buildQueryCurl(connectionString, sql) {
+  const body = JSON.stringify({
+    ConnectionString: connectionString,
+    Sql: sql,
+  });
+
+  const escapedBody = body.replace(/'/g, `'\\''`);
+
+  return `curl '${QUERY_API_URL}' \
+  -H 'Accept: application/json, text/plain, */*' \
+  -H 'Authorization: ${QUERY_AUTH_TOKEN}' \
+  -H 'Content-Type: application/json' \
+  --data-raw '${escapedBody}' \
+  --insecure`;
+}
+
+// lấy danh sách rows từ response của api Query, tuỳ cấu trúc trả về mà lấy field cho đúng
+function extractRows(res) {
+  const data = parseResponse(res);
+  const rows = data?.Data ?? data?.Result ?? data;
+  return Array.isArray(rows) ? rows : [];
+}
+
 // gọi api đơn hàng
 
 let curlOrderAPI = `
@@ -148,7 +187,117 @@ if (returnSN) {
 }
 [invItemRes, returnOrderRes] = await requestMultiCURL(curlStepTwo);
 
-// step3, build ra mock data để gọi ở trong local (option)
+// ====== STEP 3: lấy connection_id từ system_config (chỉ chạy khi isQuerySqlBuilder = true) ======
+if (isQuerySqlBuilder) {
+  let curlSystemConfig = buildQueryCurl(
+    SYSTEM_CONFIG_CONNECTION_STRING,
+    `select * from sme.shopee_connect_mnt where shop_id = ${shopId} and database_id = '${databaseId}' limit 1;`,
+  );
+  let systemConfigRes = await requestCURL(curlSystemConfig);
+  let systemConfigRows = extractRows(systemConfigRes);
+
+  if (systemConfigRows.length > 0) {
+    connectionId = systemConfigRows[0].connection_id;
+  }
+}
+
+// ====== STEP 4: dùng connection_id để query các bảng bên database_id user ======
+if (isQuerySqlBuilder && connectionId) {
+  // item_id_shopee = any(array[...]) cần các item id dạng string, escape dấu nháy đơn nếu có
+  let itemIdsArrayLiteral =
+    "ARRAY[" +
+    itemIds.map((id) => `'${String(id).replace(/'/g, "''")}'`).join(",") +
+    "]";
+
+  let curlConnectionInfo = buildQueryCurl(
+    DATABASE_ID_CONNECTION_STRING,
+    `select * from sme.shopee_connection_info where connection_id = '${connectionId}' limit 1;`,
+  );
+  let curlSettingSyncOrder = buildQueryCurl(
+    DATABASE_ID_CONNECTION_STRING,
+    `select * from sme.setting_sync_order_shopee where connection_id = '${connectionId}' limit 1;`,
+  );
+  let curlSettingMappingItem = buildQueryCurl(
+    DATABASE_ID_CONNECTION_STRING,
+    `select * from sme.setting_map_item_shopee where connection_id = '${connectionId}' and item_id_shopee::text = any(${itemIdsArrayLiteral}) limit 1000;`,
+  );
+  let curlSettingMappingStock = buildQueryCurl(
+    DATABASE_ID_CONNECTION_STRING,
+    `select * from sme.setting_map_stock_shopee where connection_id = '${connectionId}' limit 1000;`,
+  );
+
+  let curlStepFour = [
+    curlConnectionInfo,
+    curlSettingSyncOrder,
+    curlSettingMappingItem,
+    curlSettingMappingStock,
+  ];
+
+  [
+    connectionInfoRes,
+    settingSyncOrderRes,
+    settingMappingItemRes,
+    settingMappingStockRes,
+  ] = await requestMultiCURL(curlStepFour);
+
+  // ====== STEP 5: build sqlBuilder từ kết quả các bảng trên ======
+  let connectionInfoRows = extractRows(connectionInfoRes);
+  let settingSyncOrderRows = extractRows(settingSyncOrderRes);
+  let settingMappingItemRows = extractRows(settingMappingItemRes);
+  let settingMappingStockRows = extractRows(settingMappingStockRes);
+
+  if (connectionInfoRows.length > 0) {
+    sqlBuilder.shopee_connection_info = convertJSONToPostgreSQL(
+      connectionInfoRows,
+      {
+        tableName: "shopee_connection_info",
+        schemaName: "sme",
+        primaryKeyField: "connection_id",
+        enableCreateTable: true,
+        enableDeleteScript: true,
+      },
+    );
+  }
+
+  if (settingSyncOrderRows.length > 0) {
+    sqlBuilder.setting_sync_order_shopee = convertJSONToPostgreSQL(
+      settingSyncOrderRows,
+      {
+        tableName: "setting_sync_order_shopee",
+        schemaName: "sme",
+        primaryKeyField: "connection_id",
+        enableCreateTable: true,
+        enableDeleteScript: true,
+      },
+    );
+  }
+
+  if (settingMappingItemRows.length > 0) {
+    sqlBuilder.setting_mapping_item_shopee = convertJSONToPostgreSQL(
+      settingMappingItemRows,
+      {
+        tableName: "setting_mapping_item_shopee",
+        schemaName: "sme",
+        enableCreateTable: true,
+        enableDeleteScript: true,
+      },
+    );
+  }
+
+  if (settingMappingStockRows.length > 0) {
+    sqlBuilder.setting_mapping_stock_shopee = convertJSONToPostgreSQL(
+      settingMappingStockRows,
+      {
+        tableName: "setting_mapping_stock_shopee",
+        schemaName: "sme",
+        enableCreateTable: true,
+        enableDeleteScript: true,
+      },
+    );
+  }
+}
+
+// step 6, build ra mock data để gọi ở trong local (option)
 if (isBuildMockData) {
   mockData = createMockResponse([
     {
@@ -183,4 +332,20 @@ return {
     return_order_res: returnOrderRes ? parseResponse(returnOrderRes) : null,
   },
   mockData,
+  queryResponseData: {
+    connection_id: connectionId,
+    connection_info_res: connectionInfoRes
+      ? extractRows(connectionInfoRes)
+      : null,
+    setting_sync_order_res: settingSyncOrderRes
+      ? extractRows(settingSyncOrderRes)
+      : null,
+    setting_mapping_item_res: settingMappingItemRes
+      ? extractRows(settingMappingItemRes)
+      : null,
+    setting_mapping_stock_res: settingMappingStockRes
+      ? extractRows(settingMappingStockRes)
+      : null,
+  },
+  sqlBuilder,
 };
