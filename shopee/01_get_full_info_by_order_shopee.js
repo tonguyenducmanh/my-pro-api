@@ -10,6 +10,9 @@ let apiKeyHeader =
   "x-misa-api-key:misa_ci_live_Dcpp1Ja3NQLKUPdjhbdn6ByPmnhewILJko5";
 // danh sách response
 let orderRes, escrowDetailBatchRes, buyerInvoice, invItemRes, returnOrderRes;
+// mockdata để import vào trong local
+let mockData = [];
+
 // gọi api đơn hàng
 
 let curlOrderAPI = `
@@ -143,11 +146,33 @@ if (returnSN) {
 let resStepTwo = await requestMultiCURL(curlStepTwo);
 [invItemRes, returnOrderRes] = parseResponseMulti(resStepTwo);
 
+// step3, build ra mock data để gọi ở trong local (option)
+mockData = createMockResponse([
+  {
+    request: curlOrderAPI,
+    response: orderRes,
+  },
+  {
+    request: curlEscrowDetailBatch,
+    response: escrowDetailBatchRes,
+  },
+  {
+    request: curlInventoryItem,
+    response: invItemRes,
+  },
+  {
+    request: curlReturnOrder,
+    response: returnOrderRes,
+  },
+]);
 // trả về toàn bộ response
 return {
-  orderRes,
-  escrowDetailBatchRes,
-  buyerInvoice,
-  invItemRes,
-  returnOrderRes,
+  apiResponseData: {
+    orderRes,
+    escrowDetailBatchRes,
+    buyerInvoice,
+    invItemRes,
+    returnOrderRes,
+  },
+  mockData,
 };
