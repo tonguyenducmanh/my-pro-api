@@ -9,7 +9,7 @@ let appCodeHeader = "x-misa-app-code:AMISAccounting";
 let apiKeyHeader =
   "x-misa-api-key:misa_ci_live_Dcpp1Ja3NQLKUPdjhbdn6ByPmnhewILJko5";
 // danh sách response
-let orderRes, escrowDetailBatchRes, buyerInvoice, invItemRes, returnOrderRes;
+let orderRes, escrowDetailBatchRes, buyerInvoiceRes, invItemRes, returnOrderRes;
 // mockdata để import vào trong local
 let mockData = [];
 
@@ -75,20 +75,23 @@ curl 'https://ecommerce.misa.vn/backend-api/Shopees/orders/buyer-invoice-info' \
 
 // step 1: gọi toàn bộ các api đồng thời trước
 let curlStepOne = [curlOrderAPI, curlEscrowDetailBatch, curlBuyerInvoice];
-let resStepOne = await requestMultiCURL(curlStepOne);
-[orderRes, escrowDetailBatchRes, buyerInvoice] = parseResponseMulti(resStepOne);
+[orderRes, escrowDetailBatchRes, buyerInvoiceRes] =
+  await requestMultiCURL(curlStepOne);
 // lọc ra thông tin danh sách vật tư và đơn trả lại
+let orderResParse = parseResponse(orderRes);
+let escrowDetailBatchResParse = parseResponse(escrowDetailBatchRes);
+
 if (
-  orderRes &&
-  orderRes.order_list &&
-  escrowDetailBatchRes &&
-  escrowDetailBatchRes.response
+  orderResParse &&
+  orderResParse.order_list &&
+  escrowDetailBatchResParse &&
+  escrowDetailBatchResParse.response
 ) {
-  let orderFound = orderRes.order_list.find((x) => x.order_sn == orderSN);
+  let orderFound = orderResParse.order_list.find((x) => x.order_sn == orderSN);
   if (orderFound && orderFound.item_list) {
     itemIds = orderFound.item_list.map((x) => x.item_id);
   }
-  let escrowFound = escrowDetailBatchRes.response.find(
+  let escrowFound = escrowDetailBatchResParse.response.find(
     (x) => x.escrow_detail && x.escrow_detail.order_sn == orderSN,
   );
   if (
@@ -142,9 +145,7 @@ let curlStepTwo = [curlInventoryItem];
 if (returnSN) {
   curlStepTwo.push(curlReturnOrder);
 }
-
-let resStepTwo = await requestMultiCURL(curlStepTwo);
-[invItemRes, returnOrderRes] = parseResponseMulti(resStepTwo);
+[invItemRes, returnOrderRes] = await requestMultiCURL(curlStepTwo);
 
 // step3, build ra mock data để gọi ở trong local (option)
 mockData = createMockResponse([
@@ -155,6 +156,10 @@ mockData = createMockResponse([
   {
     request: curlEscrowDetailBatch,
     response: escrowDetailBatchRes,
+  },
+  {
+    request: curlBuyerInvoice,
+    response: buyerInvoiceRes,
   },
   {
     request: curlInventoryItem,
@@ -168,11 +173,11 @@ mockData = createMockResponse([
 // trả về toàn bộ response
 return {
   apiResponseData: {
-    orderRes,
-    escrowDetailBatchRes,
-    buyerInvoice,
-    invItemRes,
-    returnOrderRes,
+    order_res: orderResParse,
+    escrow_detail_batch_res: escrowDetailBatchResParse,
+    buyer_invoice: parseResponse(buyerInvoiceRes),
+    inv_item_res: invItemRes ? parseResponse(invItemRes) : null,
+    return_order_res: returnOrderRes ? parseResponse(returnOrderRes) : null,
   },
   mockData,
 };
