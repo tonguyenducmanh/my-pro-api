@@ -42,7 +42,7 @@ curl 'https://ecommerce.misa.vn/backend-api/TikToks/return_refund/search' \
   "ShopCipher": "${shopCipher}",
   "Body": {
     "order_ids": [
-      ${orderId}
+      "${orderId}"
     ]
   }
 }'
@@ -62,7 +62,7 @@ curl 'https://ecommerce.misa.vn/backend-api/TikToks/cancellation/search' \
   "AccessToken": "${accessToken}",
   "Body": {
     "order_ids": [
-      ${orderId}
+      "${orderId}"
     ]
   }
 }'
