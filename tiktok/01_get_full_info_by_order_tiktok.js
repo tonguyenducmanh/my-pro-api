@@ -1,4 +1,5 @@
 // điền các thông tin dưới đây tùy vào từng dữ liệu cần query
+let isBuildMockData = false;
 let accessToken = "";
 let shopCipher = "";
 let orderId = ""; // order id cần query, dùng chung cho orders/details, return_refund/search, cancellation/search
@@ -125,28 +126,30 @@ if (curlStepTwo.length) {
 }
 
 // step3, build ra mock data để gọi ở trong local (option)
-mockData = createMockResponse([
-  {
-    request: curlOrderAPI,
-    response: orderRes,
-  },
-  {
-    request: curlReturnRefund,
-    response: returnRefundRes,
-  },
-  {
-    request: curlCancellation,
-    response: cancellationRes,
-  },
-  {
-    request: curlFullStock,
-    response: stockRes,
-  },
-  ...curlStepTwo.map((curl, idx) => ({
-    request: curl,
-    response: productDetailResList[idx],
-  })),
-]);
+if (isBuildMockData) {
+  mockData = createMockResponse([
+    {
+      request: curlOrderAPI,
+      response: orderRes,
+    },
+    {
+      request: curlReturnRefund,
+      response: returnRefundRes,
+    },
+    {
+      request: curlCancellation,
+      response: cancellationRes,
+    },
+    {
+      request: curlFullStock,
+      response: stockRes,
+    },
+    ...curlStepTwo.map((curl, idx) => ({
+      request: curl,
+      response: productDetailResList[idx],
+    })),
+  ]);
+}
 
 // trả về toàn bộ response
 return {

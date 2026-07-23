@@ -1,4 +1,5 @@
 // điền các thông tin dưới đây tùy vào từng dữ liệu cần query
+let isBuildMockData = false;
 let accessToken = "";
 let refreshToken = "";
 let shopId = null;
@@ -148,28 +149,30 @@ if (returnSN) {
 [invItemRes, returnOrderRes] = await requestMultiCURL(curlStepTwo);
 
 // step3, build ra mock data để gọi ở trong local (option)
-mockData = createMockResponse([
-  {
-    request: curlOrderAPI,
-    response: orderRes,
-  },
-  {
-    request: curlEscrowDetailBatch,
-    response: escrowDetailBatchRes,
-  },
-  {
-    request: curlBuyerInvoice,
-    response: buyerInvoiceRes,
-  },
-  {
-    request: curlInventoryItem,
-    response: invItemRes,
-  },
-  {
-    request: curlReturnOrder,
-    response: returnOrderRes,
-  },
-]);
+if (isBuildMockData) {
+  mockData = createMockResponse([
+    {
+      request: curlOrderAPI,
+      response: orderRes,
+    },
+    {
+      request: curlEscrowDetailBatch,
+      response: escrowDetailBatchRes,
+    },
+    {
+      request: curlBuyerInvoice,
+      response: buyerInvoiceRes,
+    },
+    {
+      request: curlInventoryItem,
+      response: invItemRes,
+    },
+    {
+      request: curlReturnOrder,
+      response: returnOrderRes,
+    },
+  ]);
+}
 // trả về toàn bộ response
 return {
   apiResponseData: {
