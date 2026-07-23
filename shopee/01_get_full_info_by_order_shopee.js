@@ -27,6 +27,9 @@ let connectionInfoRes,
   settingSyncOrderRes,
   settingMappingItemRes,
   settingMappingStockRes;
+
+// sqlBuilder được build theo từng connection string: mỗi key = 1 connection string,
+// value = 1 chuỗi SQL duy nhất gộp toàn bộ các bảng đã query trên connection đó
 let sqlBuilder = {};
 
 // helper build curl cho api Query (dùng chung cho system_config và database_id user)
@@ -51,6 +54,12 @@ function extractRows(res) {
   const data = parseResponse(res);
   const rows = data?.Data ?? data?.Result ?? data;
   return Array.isArray(rows) ? rows : [];
+}
+
+// helper: gộp nhiều đoạn SQL (create table / insert / delete...) của nhiều bảng
+// thuộc CÙNG 1 connection string thành 1 chuỗi SQL duy nhất
+function buildSingleSqlForConnection(parts) {
+  return parts.filter(Boolean).join("\n\n");
 }
 
 // gọi api đơn hàng
@@ -187,7 +196,8 @@ if (returnSN) {
 }
 [invItemRes, returnOrderRes] = await requestMultiCURL(curlStepTwo);
 
-// ====== STEP 3: lấy connection_id từ system_config (chỉ chạy khi isQuerySqlBuilder = true) ======
+// ====== STEP 3: connection string #1 - SYSTEM_CONFIG_CONNECTION_STRING ======
+// -> lấy connection_id, đồng thời build luôn 1 sqlBuilder duy nhất cho connection string này
 if (isQuerySqlBuilder) {
   let curlSystemConfig = buildQueryCurl(
     SYSTEM_CONFIG_CONNECTION_STRING,
@@ -198,10 +208,22 @@ if (isQuerySqlBuilder) {
 
   if (systemConfigRows.length > 0) {
     connectionId = systemConfigRows[0].connection_id;
+
+    // 1 connection string -> 1 sqlBuilder -> 1 content sql duy nhất
+    sqlBuilder.system_config = buildSingleSqlForConnection([
+      convertJSONToPostgreSQL(systemConfigRows, {
+        tableName: "shopee_connect_mnt",
+        schemaName: "sme",
+        primaryKeyField: "connection_id",
+        enableCreateTable: false,
+        enableDeleteScript: true,
+      }),
+    ]);
   }
 }
 
-// ====== STEP 4: dùng connection_id để query các bảng bên database_id user ======
+// ====== STEP 4: connection string #2 - DATABASE_ID_CONNECTION_STRING ======
+// -> query 4 bảng liên quan, nhưng vẫn gộp lại thành 1 sqlBuilder duy nhất cho connection string này
 if (isQuerySqlBuilder && connectionId) {
   // item_id_shopee = any(array[...]) cần các item id dạng string, escape dấu nháy đơn nếu có
   let itemIdsArrayLiteral =
@@ -240,60 +262,63 @@ if (isQuerySqlBuilder && connectionId) {
     settingMappingStockRes,
   ] = await requestMultiCURL(curlStepFour);
 
-  // ====== STEP 5: build sqlBuilder từ kết quả các bảng trên ======
   let connectionInfoRows = extractRows(connectionInfoRes);
   let settingSyncOrderRows = extractRows(settingSyncOrderRes);
   let settingMappingItemRows = extractRows(settingMappingItemRes);
   let settingMappingStockRows = extractRows(settingMappingStockRes);
 
+  // gom SQL của cả 4 bảng lại thành 1 mảng, rồi build ra 1 content duy nhất
+  let databaseIdSqlParts = [];
+
   if (connectionInfoRows.length > 0) {
-    sqlBuilder.shopee_connection_info = convertJSONToPostgreSQL(
-      connectionInfoRows,
-      {
+    databaseIdSqlParts.push(
+      convertJSONToPostgreSQL(connectionInfoRows, {
         tableName: "shopee_connection_info",
         schemaName: "sme",
         primaryKeyField: "connection_id",
-        enableCreateTable: true,
+        enableCreateTable: false,
         enableDeleteScript: true,
-      },
+      }),
     );
   }
 
   if (settingSyncOrderRows.length > 0) {
-    sqlBuilder.setting_sync_order_shopee = convertJSONToPostgreSQL(
-      settingSyncOrderRows,
-      {
+    databaseIdSqlParts.push(
+      convertJSONToPostgreSQL(settingSyncOrderRows, {
         tableName: "setting_sync_order_shopee",
         schemaName: "sme",
         primaryKeyField: "connection_id",
-        enableCreateTable: true,
+        enableCreateTable: false,
         enableDeleteScript: true,
-      },
+      }),
     );
   }
 
   if (settingMappingItemRows.length > 0) {
-    sqlBuilder.setting_mapping_item_shopee = convertJSONToPostgreSQL(
-      settingMappingItemRows,
-      {
+    databaseIdSqlParts.push(
+      convertJSONToPostgreSQL(settingMappingItemRows, {
         tableName: "setting_mapping_item_shopee",
         schemaName: "sme",
-        enableCreateTable: true,
+        enableCreateTable: false,
         enableDeleteScript: true,
-      },
+      }),
     );
   }
 
   if (settingMappingStockRows.length > 0) {
-    sqlBuilder.setting_mapping_stock_shopee = convertJSONToPostgreSQL(
-      settingMappingStockRows,
-      {
+    databaseIdSqlParts.push(
+      convertJSONToPostgreSQL(settingMappingStockRows, {
         tableName: "setting_mapping_stock_shopee",
         schemaName: "sme",
-        enableCreateTable: true,
+        enableCreateTable: false,
         enableDeleteScript: true,
-      },
+      }),
     );
+  }
+
+  if (databaseIdSqlParts.length > 0) {
+    // 1 connection string -> 1 sqlBuilder -> 1 content sql duy nhất (đã gộp cả 4 bảng)
+    sqlBuilder.database_id = buildSingleSqlForConnection(databaseIdSqlParts);
   }
 }
 
