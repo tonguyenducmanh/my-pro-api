@@ -23,7 +23,8 @@ let QUERY_AUTH_TOKEN = "Bearer đây"; // copy từ curl gốc của api Query
 let QUERY_API_URL = "https://smecloudmnt.misaonline.vpnlocal/api/dbmntv2/Query";
 
 let connectionId = null;
-let connectionInfoRes,
+let systemConfigRes, 
+  connectionInfoRes,
   settingSyncOrderRes,
   settingMappingItemRes,
   settingMappingStockRes;
@@ -203,7 +204,7 @@ if (isQuerySqlBuilder) {
     SYSTEM_CONFIG_CONNECTION_STRING,
     `select * from sme.shopee_connect_mnt where shop_id = ${shopId} and database_id = '${databaseId}' limit 1;`,
   );
-  let systemConfigRes = await requestCURL(curlSystemConfig);
+  systemConfigRes = await requestCURL(curlSystemConfig);
   let systemConfigRows = extractRows(systemConfigRes);
 
   if (systemConfigRows.length > 0) {
@@ -359,6 +360,9 @@ return {
   mockData,
   queryResponseData: {
     connection_id: connectionId,
+    system_config_res: systemConfigRes
+      ? extractRows(systemConfigRes)
+      : null,
     connection_info_res: connectionInfoRes
       ? extractRows(connectionInfoRes)
       : null,
