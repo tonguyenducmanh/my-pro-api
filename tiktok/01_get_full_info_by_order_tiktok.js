@@ -275,7 +275,7 @@ if (isQuerySqlBuilder && connectionId) {
   if (settingMappingItemRows.length > 0) {
     databaseIdSqlParts.push(
       convertJSONToPostgreSQL(settingMappingItemRows, {
-        tableName: "setting_mapping_item_tiktok",
+        tableName: "setting_map_item_tiktok",
         schemaName: "sme",
         enableCreateTable: false,
         enableDeleteScript: true,
@@ -286,7 +286,7 @@ if (isQuerySqlBuilder && connectionId) {
   if (settingMappingStockRows.length > 0) {
     databaseIdSqlParts.push(
       convertJSONToPostgreSQL(settingMappingStockRows, {
-        tableName: "setting_mapping_stock_tiktok",
+        tableName: "setting_map_stock_tiktok",
         schemaName: "sme",
         enableCreateTable: false,
         enableDeleteScript: true,
@@ -347,10 +347,10 @@ return {
     setting_sync_order_res: settingSyncOrderRes
       ? extractRows(settingSyncOrderRes)
       : null,
-    setting_mapping_item_res: settingMappingItemRes
+    setting_map_item_res: settingMappingItemRes
       ? extractRows(settingMappingItemRes)
       : null,
-    setting_mapping_stock_res: settingMappingStockRes
+    setting_map_stock_res: settingMappingStockRes
       ? extractRows(settingMappingStockRes)
       : null,
   },
