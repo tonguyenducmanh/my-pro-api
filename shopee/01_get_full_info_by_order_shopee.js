@@ -240,11 +240,11 @@ if (isQuerySqlBuilder && connectionId) {
     DATABASE_ID_CONNECTION_STRING,
     `select * from sme.setting_sync_order_shopee where connection_id = '${connectionId}' limit 1;`,
   );
-  let curlSettingMappingItem = buildQueryCurl(
+  let curlSettingItem = buildQueryCurl(
     DATABASE_ID_CONNECTION_STRING,
     `select * from sme.setting_map_item_shopee where connection_id = '${connectionId}' and item_id_shopee::text = any(${itemIdsArrayLiteral}) limit 1000;`,
   );
-  let curlSettingMappingStock = buildQueryCurl(
+  let curlSettingStock = buildQueryCurl(
     DATABASE_ID_CONNECTION_STRING,
     `select * from sme.setting_map_stock_shopee where connection_id = '${connectionId}' limit 1000;`,
   );
@@ -252,14 +252,14 @@ if (isQuerySqlBuilder && connectionId) {
   let curlStepFour = [
     curlConnectionInfo,
     curlSettingSyncOrder,
-    curlSettingMappingItem,
-    curlSettingMappingStock,
+    curlSettingItem,
+    curlSettingStock,
   ];
 
   [
     connectionInfoRes,
     settingSyncOrderRes,
-    settingMappingItemRes,
+    settingItemRes,
     settingMappingStockRes,
   ] = await requestMultiCURL(curlStepFour);
 
@@ -298,7 +298,7 @@ if (isQuerySqlBuilder && connectionId) {
   if (settingMappingItemRows.length > 0) {
     databaseIdSqlParts.push(
       convertJSONToPostgreSQL(settingMappingItemRows, {
-        tableName: "setting_mapping_item_shopee",
+        tableName: "setting_map_item_shopee",
         schemaName: "sme",
         enableCreateTable: false,
         enableDeleteScript: true,
@@ -309,7 +309,7 @@ if (isQuerySqlBuilder && connectionId) {
   if (settingMappingStockRows.length > 0) {
     databaseIdSqlParts.push(
       convertJSONToPostgreSQL(settingMappingStockRows, {
-        tableName: "setting_mapping_stock_shopee",
+        tableName: "setting_map_stock_shopee",
         schemaName: "sme",
         enableCreateTable: false,
         enableDeleteScript: true,
@@ -369,10 +369,10 @@ return {
     setting_sync_order_res: settingSyncOrderRes
       ? extractRows(settingSyncOrderRes)
       : null,
-    setting_mapping_item_res: settingMappingItemRes
+    setting_map_item_res: settingMappingItemRes
       ? extractRows(settingMappingItemRes)
       : null,
-    setting_mapping_stock_res: settingMappingStockRes
+    setting_map_stock_res: settingMappingStockRes
       ? extractRows(settingMappingStockRes)
       : null,
   },
