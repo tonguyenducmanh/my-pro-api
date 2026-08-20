@@ -7,69 +7,89 @@ async function cleanCloudflareDeployments() {
   const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/pages/projects/${PROJECT_NAME}/deployments`;
   const headers = `Authorization: Bearer ${API_TOKEN}`;
 
-  console.log("Bắt đầu tiến trình dọn dẹp...");
+  console.log("=== BẮT ĐẦU QUÁ TRÌNH DỌN DẸP LÊN TỤC ===");
 
-  let totalDeleted = 0;
+  // Step 1: Lấy ID bản Production đang active để TUYỆT ĐỐI KHÔNG XÓA
+  const projRes = await requestCURL(`curl '${baseUrl.replace('/deployments', '')}' -H '${headers}'`);
+  const projData = parseResponse(projRes);
+  const activeProdId = projData?.result?.canonical_deployment?.id;
+  
+  if (activeProdId) {
+    console.log(`[Bảo vệ] Bản Production Active hiện tại: ${activeProdId}`);
+  }
+
   let hasMore = true;
-  let keepLatestId = null;
+  let totalDeletedCount = 0;
+  let loopCount = 0;
 
+  // Lặp lại việc fetch Trang 1 cho đến khi không còn bản preview cũ nào
   while (hasMore) {
-    // Luôn lấy Trang 1 (per_page=25) để tránh xáo trộn pagination
-    const listRes = await requestCURL(`curl '${baseUrl}?page=1&per_page=25' -H '${headers}'`);
-    const listData = parseResponse(listRes);
+    loopCount++;
+    console.log(`\n--- Đang quét lượt thứ ${loopCount} (Luôn tải Trang 1 để tránh lệch phân trang) ---`);
 
-    if (!listData || !listData.success || !listData.result) {
-      console.error("Lỗi khi tải danh sách deployment:", listData?.errors || listRes);
+    // Luôn lấy 50 bản ghi ở Trang 1
+    const res = await requestCURL(`curl '${baseUrl}?page=1&per_page=50' -H '${headers}'`);
+    const data = parseResponse(res);
+
+    if (!data || !data.success || !data.result || data.result.length === 0) {
+      console.log("Không còn deployment nào để xử lý.");
       break;
     }
 
-    let deployments = listData.result;
+    const currentBatch = data.result;
 
-    // Nếu chạy lần đầu: Lưu lại ID của deployment MỚI NHẤT để không bao giờ xóa nó
-    if (!keepLatestId && deployments.length > 0) {
-      // Sắp xếp giảm dần theo thời gian tạo để đảm bảo bản mới nhất nằm ở index 0
-      deployments.sort((a, b) => new Date(b.created_on) - new Date(a.created_on));
-      keepLatestId = deployments[0].id;
-      console.log(`GIỮ LẠI (Mới nhất): ${keepLatestId} | Tạo lúc: ${deployments[0].created_on}`);
-    }
+    // Lọc ra danh sách CẦN XÓA:
+    // 1. Không phải là bản Production đang Active
+    // 2. Lấy tất cả Preview Deployments (trừ trường hợp muốn giữ đúng 1 bản Preview mới nhất)
+    const toDelete = currentBatch.filter(dep => {
+      if (dep.id === activeProdId) return false; // Không xóa Prod Active
+      return true; // Chọn xóa toàn bộ các bản ghi còn lại trong trang này
+    });
 
-    // Lọc bỏ ID mới nhất khỏi danh sách cần xóa
-    const toDelete = deployments.filter(dep => dep.id !== keepLatestId);
-
-    // Nếu không còn bản nào khác ngoài bản mới nhất
+    // Nếu trong 50 bản ghi này chỉ toàn bản Active Prod hoặc không còn gì xóa được nữa
     if (toDelete.length === 0) {
-      console.log("Đã duyệt hết! Không còn bản cũ nào để xóa.");
+      console.log("Đã duyệt hết các bản có thể xóa.");
       hasMore = false;
       break;
     }
 
-    console.log(`Phát hiện ${toDelete.length} bản cần xóa ở lô này...`);
+    console.log(`Phát hiện ${toDelete.length} bản cần xóa trong đợt này...`);
 
-    // Tạo các lệnh DELETE
+    // Tạo danh sách CURL kèm force=true
     const deleteCurls = toDelete.map(
-      (dep) => `curl -X DELETE '${baseUrl}/${dep.id}' -H '${headers}'`
+      (dep) => `curl -X DELETE '${baseUrl}/${dep.id}?force=true' -H '${headers}'`
     );
 
     // Gửi xóa song song
     const responses = await requestMultiCURL(deleteCurls);
     const results = parseResponseMulti(responses);
 
-    let deletedInBatch = 0;
-    results.forEach((res) => {
-      if (res && res.status === 200) {
-        deletedInBatch++;
+    let deletedInThisLoop = 0;
+    results.forEach((r, idx) => {
+      if (r && r.success) {
+        deletedInThisLoop++;
+        totalDeletedCount++;
+      } else {
+        console.error(`Xóa thất bại ID [${toDelete[idx].id}]:`, r?.errors || r);
       }
     });
 
-    totalDeleted += deletedInBatch;
-    console.log(`Đã xóa thành công ${deletedInBatch}/${toDelete.length} bản trong đợt này. Total: ${totalDeleted}`);
+    console.log(`Đã xóa thành công ${deletedInThisLoop}/${toDelete.length} bản trong lượt này.`);
 
-    // Nghỉ 1.5 giây để Cloudflare cập nhật lại state trên DB của họ
-    await delay(1.5);
+    // Nếu không xóa được bản nào trong lượt (ví dụ bị vướng lỗi API) -> Dừng vòng lặp tránh lặp vô tận
+    if (deletedInThisLoop === 0) {
+      console.warn("Không thể xóa thêm bản nào nữa (Có thể do lỗi hằng số API hoặc hết quyền). Dừng script.");
+      hasMore = false;
+      break;
+    }
+
+    // Nghỉ 1 giây để tránh Rate Limit API
+    await delay(1);
   }
 
-  console.log(`\n Hoàn tất! Tổng cộng đã xóa ${totalDeleted} deployment cũ.`);
+  console.log(`\n==========================================`);
+  console.log(`TỔNG CỘNG ĐÃ XÓA THÀNH CÔNG: ${totalDeletedCount} deployments.`);
+  console.log(`==========================================\n`);
 }
 
-// Chạy script
 await cleanCloudflareDeployments();
