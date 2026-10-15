@@ -1,9 +1,9 @@
 // điền các thông tin dưới đây tùy vào từng dữ liệu cần query
-let isBuildMockData = false;
-let accessToken = "";
-let refreshToken = "";
-let shopId = null;
-let orderSN = "";
+let isBuildMockData = true;
+let accessToken = "eyJhbGciOiJIUzI1NiJ9.CJ_UehABGIb5748EIAEon4LC1gYwqJHOuAI4AUABSAM.7zTr6Hiq6i2CIkf2vJEB-cjjZb_PFCualk76rLYYfL0";
+let refreshToken = "eyJhbGciOiJIUzI1NiJ9.CJ_UehABGIb5748EIAIon4LC1gYwucDMyA04AUABSAM.8TVZUvAHolYG4AECg_ye9SSDWdLo0DMTJH1QueBTMdc";
+let shopId = 1107033222;
+let orderSN = "260920GEKERK42";
 let returnSN = []; // thông tin trả lại đơn hàng sẽ được gán sau khi gọi api kế toán đơn hàng
 let itemIds = []; // danh sách item id sẽ được gán sau khi gọi api đơn hàng
 let appCodeHeader = "x-misa-app-code:AMISAccounting";
@@ -15,11 +15,11 @@ let orderRes, escrowDetailBatchRes, buyerInvoiceRes, invItemRes, returnOrderRes;
 let mockData = [];
 
 // ====== CẤU HÌNH CHO PHẦN QUERY DB (system_config + database_id user) ======
-let isQuerySqlBuilder = false; // bật true nếu muốn query thêm system_config/database_id và build sqlBuilder
-let databaseId = null; // điền database_id tương ứng với shop cần lấy dữ liệu
-let SYSTEM_CONFIG_CONNECTION_STRING = "điền vào đây"; // connection string trỏ tới DB system_config
-let DATABASE_ID_CONNECTION_STRING = "điền vào đây"; // connection string trỏ tới DB của database_id (user db)
-let QUERY_AUTH_TOKEN = "Bearer đây"; // copy từ curl gốc của api Query
+let isQuerySqlBuilder = true; // bật true nếu muốn query thêm system_config/database_id và build sqlBuilder
+let databaseId = "6070a778-a4d0-461a-88b9-c310f107d01e"; // điền database_id tương ứng với shop cần lấy dữ liệu
+let SYSTEM_CONFIG_CONNECTION_STRING = "User ID=smecloud;Password=smecloud12345678@Abc;Host=10.64.157.9;Port=6432;Database=sme_sys_config;Pooling=true;"; // connection string trỏ tới DB system_config
+let DATABASE_ID_CONNECTION_STRING = "Username=smecloud;Password=smecloud12345678@Abc;Host=10.64.188.115;Port=6432;Database=db_icfki0_2026;Pooling=False"; // connection string trỏ tới DB của database_id (user db)
+let QUERY_AUTH_TOKEN = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNmRmYmI1YTQtMDgxMy00NjZjLTlhN2ItNGVlM2Y1OGI0NGY4IiwidXNlcl9uYW1lIjoidGRtYW5oMUBzb2Z0d2FyZS5taXNhLmNvbS52biIsInBob25lX251bWJlciI6IjA5ODEwNzEzMjEiLCJlbWFpbCI6InRkbWFuaDFAc29mdHdhcmUubWlzYS5jb20udm4iLCJsYXN0X25hbWUiOiJN4bqhbmgiLCJmaXJzdF9uYW1lIjoiVMO0IE5ndXnhu4VuIMSQ4bupYyIsImxpc3RfZnVuY3Rpb24iOiJbXCI3YTY5MTdkZC0xZmI4LTQ4MDktOTBmNy0wODM4MmNlZGJmODFcIixcImJjODdmNzNjLTg5NWQtNDY0ZS04ZGUyLTI1ZmVlYjJiNWMyZFwiLFwiZmRiODBhNDctMTAxOS00MzA0LWJkMjctZmJiOWM3ZmZmMTU5XCIsXCI2YmJjNjE2ZS04Y2IxLTRiZTQtOTQ1YS0zNzI2MTk2ZjY4MmRcIixcIjc2NDdmYWUwLWFiMGItNGQzMS1hODg3LTk2ZDc1ZTg4MjM3MVwiLFwiZTE1MTE4ODYtNDRlNS00ZmVjLWIzYWEtODMxNGJjZmZkZTQzXCIsXCI1ZjQzZGNkOC1mNWJlLTRiN2EtODBhZi04Y2NlNzhiYjU2MWNcIixcIjQzZjIyYzEwLTIxYjYtNDhkYS04Y2RlLWM4ZjIyZjkxNmE5YlwiXSIsIm5iZiI6MTc5MjA0OTg0OCwiZXhwIjoxNzkyMDc4NjQ4LCJpYXQiOjE3OTIwNDk4NDgsImlzcyI6Ik1JU0EuU01FLkRCTWFuYWdlbWVudCJ9.VnpbCl5EO5auf0J4ZqsQ5-VKzICkhfIiTiLyXmmsVLg"; // copy từ curl gốc của api Query
 let QUERY_API_URL = "https://smecloudmnt.misaonline.vpnlocal/api/dbmntv2/Query";
 
 let connectionId = null;
@@ -259,7 +259,7 @@ if (isQuerySqlBuilder && connectionId) {
   [
     connectionInfoRes,
     settingSyncOrderRes,
-    settingItemRes,
+    settingMappingItemRes,
     settingMappingStockRes,
   ] = await requestMultiCURL(curlStepFour);
 
@@ -294,7 +294,6 @@ if (isQuerySqlBuilder && connectionId) {
       }),
     );
   }
-
   if (settingMappingItemRows.length > 0) {
     databaseIdSqlParts.push(
       convertJSONToPostgreSQL(settingMappingItemRows, {
