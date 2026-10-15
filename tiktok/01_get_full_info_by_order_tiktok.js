@@ -1,5 +1,5 @@
 // điền các thông tin dưới đây tùy vào từng dữ liệu cần query
-let isBuildMockData = false;
+let isBuildMockData = true;
 let accessToken = "";
 let shopCipher = "";
 let orderId = ""; // order id cần query, dùng chung cho orders/details, return_refund/search, cancellation/search
@@ -14,7 +14,7 @@ let productDetailResList = [];
 let mockData = [];
 
 // ====== CẤU HÌNH CHO PHẦN QUERY DB (system_config + database_id user) ======
-let isQuerySqlBuilder = false; // bật true nếu muốn query thêm system_config/database_id và build sqlBuilder
+let isQuerySqlBuilder = true; // bật true nếu muốn query thêm system_config/database_id và build sqlBuilder
 let databaseId = null; // điền database_id tương ứng với shop cần lấy dữ liệu
 let SYSTEM_CONFIG_CONNECTION_STRING = "điền vào đây"; // connection string trỏ tới DB system_config
 let DATABASE_ID_CONNECTION_STRING = "điền vào đây"; // connection string trỏ tới DB của database_id (user db)
